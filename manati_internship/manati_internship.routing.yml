@@ -1,0 +1,24 @@
+manati_internship.internship_call_end_date_feedback:
+  path: 'feedback-fin-convocatoria/{node}'
+  defaults:
+    _title: 'Retroalimentación de fin de convocatoria'
+    _form: 'Drupal\manati_internship\Form\InternshipCallEndDateFeedbackForm'
+  requirements:
+    _permission: 'access content'
+    _role: 'company'
+  options:
+    parameters:
+      node:
+        type: entity:node
+manati_internship.internship_end_date_feedback:
+  path: 'feedback-fin-pasantia/{node}'
+  defaults:
+    _title: 'Retroalimentación de fin de pasantía'
+    _form: 'Drupal\manati_internship\Form\InternshipEndDateFeedbackForm'
+  requirements:
+    _permission: 'access content'
+    _role: 'company'
+  options:
+    parameters:
+      node:
+        type: entity:node

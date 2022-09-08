@@ -1,0 +1,222 @@
+<?php
+
+/**
+ * @file
+ * Manatí notification use Drupal's mail API.
+ */
+
+use Drupal\Core\Url;
+
+/**
+ * Implements hook_mail().
+ */
+function manati_notification_mail($key, &$message, $params) {
+  $options = [
+    'langcode' => $message['langcode'],
+  ];
+
+  switch ($key) {
+    case 'create_internship':
+      $message['headers']['Content-Type'] = 'text/html';
+      $message['from'] = \Drupal::config('system.site')->get('mail');
+      $message['subject'] = t('La empresa @name ha creado una nueva pasantía', ['@name' => $params['company_name']], $options);
+      $message['body'][] = t('La empresa <a href="@company_url">@company_name</a> ha creado la pasantía <a href="@internship_url">@internship_name</a>.', [
+        '@company_url' => Url::fromRoute('entity.user.canonical', ['user' => $params['company_nid']], ['absolute' => TRUE])->toString(),
+        '@company_name' => $params['company_name'],
+        '@internship_url' => Url::fromRoute('entity.node.canonical', ['node' => $params['internship_nid']], ['absolute' => TRUE])->toString(),
+        '@internship_name' => $params['internship_name'],
+      ],
+      $options);
+      break;
+
+    case 'invited_intern':
+      $message['headers']['Content-Type'] = 'text/html';
+      $message['from'] = \Drupal::config('system.site')->get('mail');
+      $message['subject'] = t(
+        'La empresa @company_name te ha invitado a aplicar a la pasantía @internship_name',
+        [
+          '@company_name' => $params['company_name'],
+          '@internship_name' => $params['internship_name'],
+        ],
+        $options
+      );
+      $message['body'][] = t(
+        'La empresa <a href="@company_url">@company_name</a> te invita a aplicar a la pasantía <a href="@internship_url">@internship_name</a>.',
+        [
+          '@company_url' => Url::fromRoute('entity.user.canonical', ['user' => $params['company_nid']], ['absolute' => TRUE])->toString(),
+          '@company_name' => $params['company_name'],
+          '@internship_url' => Url::fromRoute('entity.node.canonical', ['node' => $params['internship_nid']], ['absolute' => TRUE])->toString(),
+          '@internship_name' => $params['internship_name'],
+        ],
+        $options
+      );
+      break;
+
+    case 'company_call_end_date_internship':
+      $message['headers']['Content-Type'] = 'text/html';
+      $message['from'] = \Drupal::config('system.site')->get('mail');
+      $message['subject'] = t(
+        'Su empresa @company_name ha sido bloqueada por finalización de búsqueda de pasantes para la pasantía @internship_name',
+        [
+          '@company_name' => $params['company_name'],
+          '@internship_name' => $params['internship_name'],
+        ],
+        $options);
+      $message['body'][] = t(
+        '<h1>Importante</h1><br/>Ha vencido el plazo que su empresa <a href="@company_url">@company_name</a> destinó a pasantes para aplicar para su pasantía <a href="@internship_url">@internship_name</a>. Para poder desbloquear su cuenta, le agradecemos completar el siguiente formulario para conocer el resultado del proceso de búsqueda de pasante: <a href="@feedback_url">Formulario fin de convocatoria</a>', [
+          '@company_url' => Url::fromRoute('entity.user.canonical', ['user' => $params['company_nid']], ['absolute' => TRUE])->toString(),
+          '@company_name' => $params['company_name'],
+          '@internship_url' => Url::fromRoute('entity.node.canonical', ['node' => $params['internship_nid']], ['absolute' => TRUE])->toString(),
+          '@internship_name' => $params['internship_name'],
+          '@feedback_url' => Url::fromRoute('manati_internship.internship_call_end_date_feedback', ['node' => $params['internship_nid']], ['absolute' => TRUE])->toString(),
+        ],
+        $options);
+      break;
+
+    case 'admin_call_end_date_internship':
+      $message['headers']['Content-Type'] = 'text/html';
+      $message['from'] = \Drupal::config('system.site')->get('mail');
+      $message['subject'] = t(
+        'Se ha bloqueado a la empresa @company_name por finalización de búsqueda de pasantes para la pasantía @internship_name',
+        [
+          '@company_name' => $params['company_name'],
+          '@internship_name' => $params['internship_name'],
+        ],
+        $options);
+      $message['body'][] = t(
+        'Se ha bloqueado a la empresa <a href="@company_url">@company_name</a> por finalización de búsqueda de pasantes para la pasantía <a href="@internship_url">@internship_name</a>.',
+        [
+          '@company_url' => Url::fromRoute('entity.user.canonical', ['user' => $params['company_nid']], ['absolute' => TRUE])->toString(),
+          '@company_name' => $params['company_name'],
+          '@internship_url' => Url::fromRoute('entity.node.canonical', ['node' => $params['internship_nid']], ['absolute' => TRUE])->toString(),
+          '@internship_name' => $params['internship_name'],
+        ],
+        $options
+      );
+      break;
+
+    case 'rejected_intern':
+      $message['headers']['Content-Type'] = 'text/html';
+      $message['from'] = \Drupal::config('system.site')->get('mail');
+      $message['subject'] = t('En esta ocasión tu aplicación a la pasantía @name, no ha sido seleccionada.', ['@name' => $params['internship_name']], $options);
+      $message['body'][] = t(
+        '¡Hola, @intern_name! <br/> Gracias por tu interés en la pasantía <a href="@internship_url">@internship_name</a>, en esta ocasión tu aplicación no ha sido seleccionada. Te invitamos a seguir explorando nuevas oportunidades, recordá que aplicar a pasantías en tu área de especialización aumenta las posibilidades de obtenerlas.<br/><br/><a href="@url_informative/pasantias">Ver listado de pasantías</a>',
+        [
+          '@intern_name' => $params['intern_name'],
+          '@internship_url' => Url::fromRoute('entity.node.canonical', ['node' => $params['internship_nid']], ['absolute' => TRUE])->toString(),
+          '@internship_name' => $params['internship_name'],
+          '@url_informative' => \Drupal::config('manati_custom_ui.frontend_site.settings')->get('site_url'),
+        ],
+        $options
+      );
+      break;
+
+    case 'intern_applied_internship':
+      $message['headers']['Content-Type'] = 'text/html';
+      $message['from'] = \Drupal::config('system.site')->get('mail');
+      $message['subject'] = t('Has aplicado a la pasantía @internship_name en el sitio The Talent Place', ['@internship_name' => $params['internship_name']], $options);
+      $message['body'][] = t(
+        '¡Hola, @intern_name!<br/><br/>Gracias por aplicar a la pasantía <a href="@internship_url">@internship_name</a>, tus datos de contacto han sido compartidos con la empresa. En caso de que tu perfil coincida con lo solicitado por la empresa, ésta se pondrá en contacto con vos y tu institución académica para coordinación. En caso de que tu aplicación no haya sido seleccionada, el sistema te lo notificará, de forma que podás explorar otras oportunidades.<br/><br/> Por favor tomá en cuenta que para esta pasantía, la fecha en que cierra la convocatoria de pasantes es: @internship_call_end_date, por lo que dichas notificaciones podrían llegarte antes o hasta que se cumpla esta fecha.<br/><br/><a href="@url_informative/pasantias">Ver listado de pasantías</a>',
+        [
+          '@intern_name' => $params['intern_name'],
+          '@internship_call_end_date' => date("d/m/Y", strtotime($params['internship_call_end_date'])),
+          '@internship_url' => Url::fromRoute('entity.node.canonical', ['node' => $params['internship_nid']], ['absolute' => TRUE])->toString(),
+          '@internship_name' => $params['internship_name'],
+          '@url_informative' => \Drupal::config('manati_custom_ui.frontend_site.settings')->get('site_url'),
+        ],
+        $options
+      );
+      break;
+
+    case 'company_applied_internship':
+      $message['headers']['Content-Type'] = 'text/html';
+      $message['from'] = \Drupal::config('system.site')->get('mail');
+      $message['subject'] = t(
+        '@intern_name aplicó a la pasantía @internship_name',
+        [
+          '@intern_name' => $params['intern_name'],
+          '@internship_name' => $params['internship_name'],
+        ],
+        $options);
+      $message['body'][] = t(
+        'Pasante <a href="@intern_url">@intern_name</a> aplicó a la pasantía <a href="@internship_url">@internship_name</a>',
+        [
+          '@intern_url' => Url::fromRoute('entity.user.canonical', ['user' => $params['intern_uid']], ['absolute' => TRUE])->toString(),
+          '@intern_name' => $params['intern_name'],
+          '@internship_url' => Url::fromRoute('entity.node.canonical', ['node' => $params['internship_nid']], ['absolute' => TRUE])->toString(),
+          '@internship_name' => $params['internship_name'],
+        ],
+        $options
+      );
+      break;
+
+    case 'cancelled_internship':
+      $message['headers']['Content-Type'] = 'text/html';
+      $message['from'] = \Drupal::config('system.site')->get('mail');
+      $message['subject'] = t(
+        'La empresa @company_name canceló la pasantía @internship_name',
+        [
+          '@company_name' => $params['company_name'],
+          '@internship_name' => $params['internship_name'],
+        ],
+        $options
+      );
+      $message['body'][] = t(
+        '¡Hola! <br/>Te informamos que la empresa <a href="@company_url">@company_name</a> canceló la pasantía <a href="@internship_url">@internship_name</a> por lo que ya no se recibirán más aplicaciones para la misma. Te invitamos a seguir explorando nuevas oportunidades, recordá que aplicar a pasantías en tu área de especialización aumenta las posibilidades de obtenerlas.<br/><br/><a href="@url_informative/pasantias">Ver listado de pasantías</a>',
+        [
+          '@company_url' => Url::fromRoute('entity.user.canonical', ['user' => $params['company_nid']], ['absolute' => TRUE])->toString(),
+          '@company_name' => $params['company_name'],
+          '@internship_url' => Url::fromRoute('entity.node.canonical', ['node' => $params['internship_nid']], ['absolute' => TRUE])->toString(),
+          '@internship_name' => $params['internship_name'],
+          '@url_informative' => \Drupal::config('manati_custom_ui.frontend_site.settings')->get('site_url'),
+        ],
+        $options
+      );
+      break;
+
+    case 'company_end_date_internship':
+      $message['headers']['Content-Type'] = 'text/html';
+      $message['from'] = \Drupal::config('system.site')->get('mail');
+      $message['subject'] = t(
+        'Su empresa @company_name ha sido bloqueada por finalización de la pasantía @internship_name.',
+        [
+          '@company_name' => $params['company_name'],
+          '@internship_name' => $params['internship_name'],
+        ],
+        $options
+      );
+      $message['body'][] = t(
+        'La pasantía <a href="@internship_url">@internship_name</a> ha finalizado. Para poder desbloquear su cuenta, le agradecemos completar el siguiente formulario para conocer el resultado obtenido con su selección de pasante: <a href="@feedback_url">Formulario finalización de pasantía</a>',
+        [
+          '@internship_url' => Url::fromRoute('entity.node.canonical', ['node' => $params['internship_nid']], ['absolute' => TRUE])->toString(),
+          '@internship_name' => $params['internship_name'],
+          '@feedback_url' => Url::fromRoute('manati_internship.internship_end_date_feedback', ['node' => $params['internship_nid']], ['absolute' => TRUE])->toString(),
+        ],
+        $options
+      );
+      break;
+
+    case 'admin_end_date_internship':
+      $message['headers']['Content-Type'] = 'text/html';
+      $message['from'] = \Drupal::config('system.site')->get('mail');
+      $message['subject'] = t(
+        'Se ha bloqueado a la empresa @company_name por finalización de la pasantía @internship_name',
+        [
+          '@company_name' => $params['company_name'],
+          '@internship_name' => $params['internship_name'],
+        ],
+        $options
+      );
+      $message['body'][] = t(
+        'Se ha bloqueado a la empresa <a href="@company_url">@company_name</a> por finalización de la pasantía <a href="@internship_url">@internship_name</a>',
+        [
+          '@company_url' => Url::fromRoute('entity.user.canonical', ['user' => $params['company_nid']], ['absolute' => TRUE])->toString(),
+          '@company_name' => $params['company_name'],
+          '@internship_url' => Url::fromRoute('entity.node.canonical', ['node' => $params['internship_nid']], ['absolute' => TRUE])->toString(),
+          '@internship_name' => $params['internship_name'],
+        ],
+        $options
+      );
+      break;
+  }
+}

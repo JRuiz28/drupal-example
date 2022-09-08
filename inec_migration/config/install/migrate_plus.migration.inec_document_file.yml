@@ -1,0 +1,49 @@
+# File for Document Content D7.
+id: inec_document_file
+label: Documento archivos
+migration_group: inec
+migration_tags:
+  - file
+
+source:
+  langcode: und
+  plugin: media_entity_generator_d7
+  entity_type: node
+  bundle: documento
+  d7_file_url: 'https://www.inec.cr/sites/default/files/'
+  field_names:
+    - field_documento
+destination:
+  plugin: entity:media
+process:
+  bundle:
+    plugin: default_value
+    default_value: file
+  # Uses the alt tag if available, otherwise the file name.
+  name:
+    plugin: media_name
+    source: file_name
+  # This process plugin will skip the whole row if a duplicate file is found.
+  unique_file_id:
+    plugin: check_duplicate
+    source: target_id
+  # Map the field files
+  field_media_file/description: description
+  field_media_file/target_id:
+    plugin: media_file_copy
+    move: FALSE
+    reuse: TRUE
+    source: file_path
+  uid:
+    plugin: default_value
+    default_value: 1
+
+migration_dependencies: {}
+
+# When a module is creating a custom content type it needs to add an
+# enforced dependency to itself, otherwise the content type will persist
+# after the module is disabled. See: https://www.drupal.org/node/2629516.
+dependencies:
+  enforced:
+    module:
+      - inec_migration

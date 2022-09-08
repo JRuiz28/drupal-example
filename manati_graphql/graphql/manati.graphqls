@@ -1,0 +1,105 @@
+#
+# Queries.
+#
+
+type Query {
+  skills: NodeSkillConnection!
+}
+
+
+#
+# Nodes.
+#
+
+interface NodeInterface {
+  id: ID!
+  title: String!
+  url: String!
+  metatags: Metatags!
+}
+
+type NodeSkillConnection {
+  total: Int!
+  items: [NodeSkill!]
+}
+
+type NodeSkill implements NodeInterface {
+  id: ID!
+  title: String!
+  summary: String!
+  description: String!
+  icon: MediaIcon!
+  image: MediaImage
+  video: MediaRemoteVideo
+  keywords: [TaxonomyTerm]
+  careers: [NodeCareer]
+  url: String!
+  metatags: Metatags!
+  relatedContent: [NodeInterface]
+}
+
+type NodeCareer implements NodeInterface {
+  id: ID!
+  title: String!
+  summary: String!
+  description: String!
+  studyCareer: String
+  image: MediaImage
+  video: MediaRemoteVideo
+  keywords: [TaxonomyTerm]
+  basicBlocks: [ParagraphAdditionalInfoBlock]
+  skills: [NodeSkill]
+  url: String!
+  metatags: Metatags!
+  relatedContent: [NodeInterface]
+}
+
+#
+# Taxonomy term
+#
+
+type TaxonomyTerm {
+  id: ID!
+  label: String!
+  children: [TaxonomyTerm]
+}
+
+type TaxonomyTermParents {
+  taxonomyTerms: [TaxonomyTerm]
+}
+
+#
+# Media.
+#
+
+interface MediaInterface {
+  id: ID!
+  label: String
+}
+
+//** este
+type MediaImage implements MediaInterface {
+  id: ID!
+  label: String
+  alt: String
+  width: String
+  height: String
+  imageURL: String
+}
+
+// este
+type MediaRemoteVideo implements MediaInterface {
+  id: ID!
+  label: String
+  videoURL: String
+}
+
+// **
+type MediaIcon implements MediaInterface {
+  id: ID!
+  label: String
+  alt: String
+  width: String
+  height: String
+  imageURL: String
+}

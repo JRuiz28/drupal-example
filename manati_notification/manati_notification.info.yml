@@ -1,0 +1,6 @@
+name: Manati Notification
+type: module
+description: this module is for custom site notifications.
+package: MANATI
+core: 8.x
+core_version_requirement: ^8 || ^9

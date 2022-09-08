@@ -1,0 +1,14 @@
+name: Inec Migration
+type: module
+description: Inec migration from the D7 site.
+package: MANATI
+core_version_requirement: ^8 || ^9
+dependencies:
+  - drupal:migrate
+  - drupal:migrate_drupal
+  - drupal:migrate_drupal_ui
+  - migrate_plus:migrate_plus
+  - migrate_devel:migrate_devel
+  - migrate_tools:migrate_tools
+  - migrate_upgrade:migrate_upgrade
+  - migrate_file_to_media:migrate_file_to_media

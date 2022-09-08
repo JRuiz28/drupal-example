@@ -1,0 +1,6 @@
+name: Manati Internship
+type: module
+description: This module provides custom functionality for internship entities.
+package: MANATI
+core: 8.x
+core_version_requirement: ^8 || ^9

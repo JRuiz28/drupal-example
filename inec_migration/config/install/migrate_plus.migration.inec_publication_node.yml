@@ -1,0 +1,75 @@
+# Migration for Publication Content.
+id: inec_publication_node
+label: Publicaciones contenido
+migration_group: inec
+migration_tags:
+  - publication_content
+  - node_content
+
+source:
+  plugin: inec_publication_node
+  node_type: documento
+destination:
+  plugin: entity:node
+process:
+  type:
+    plugin: default_value
+    default_value: publication
+  title: title
+  field_category:
+    plugin: documents_categories_map
+    source: field_tipo_de_documento
+  body:
+    plugin: sub_process
+    source: body
+    process:
+      value: value
+      format:
+        plugin: default_value
+        default_value: basic_editor
+  field_download_files_unlimited:
+    plugin: sub_process
+    source: field_documento
+    process:
+      target_id:
+        plugin: migration_lookup
+        migration: inec_document_file
+        no_stub: true
+        source: fid
+  field_start_year_txt:
+    plugin: sub_process
+    source: field_anio_documento
+    process:
+      value:
+        plugin: start_year_text
+        source: value
+  field_end_year_txt:
+    plugin: end_year_text
+    source: field_anio_documento
+  field_thematic_area_unlimited:
+    plugin: thematic_area_map
+    source: field_area_tematica_documento
+  field_time_period:
+    plugin: period_map
+    source: field_periodo/0
+  field_end_period:
+    plugin: period_map
+    source: field_periodo/1
+  status: status
+  created: created
+  changed: changed
+  moderation_state:
+    plugin: default_value
+    default_value: published
+
+migration_dependencies:
+  optional:
+    - inec_document_file
+
+# When a module is creating a custom content type it needs to add an
+# enforced dependency to itself, otherwise the content type will persist
+# after the module is disabled. See: https://www.drupal.org/node/2629516.
+dependencies:
+  enforced:
+    module:
+      - inec_migration

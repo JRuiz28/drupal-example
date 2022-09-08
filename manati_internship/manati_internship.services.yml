@@ -1,0 +1,6 @@
+services:
+  manati_internship.event_subscriber:
+    class: Drupal\manati_internship\EventSubscriber\CompanyAccountBlockSubscriber
+    arguments: ['@current_route_match', '@current_user', '@entity_type.manager', '@messenger']
+    tags:
+      - { name: event_subscriber }

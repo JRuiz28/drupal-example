@@ -1,0 +1,10 @@
+name: Manati GraphQL
+type: module
+description: Manati GraphQL Schema definitions.
+package: MANATI
+core: 8.x
+core_version_requirement: ^8 || ^9
+dependencies:
+  - graphql:graphql
+  - node:node
+  - manati_global_config:manati_global_config

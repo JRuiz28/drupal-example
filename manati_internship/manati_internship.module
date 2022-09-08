@@ -1,0 +1,321 @@
+<?php
+
+/**
+ * @file
+ * Primary module hooks for Manati Internship module.
+ */
+
+use Drupal\node\NodeInterface;
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\node\Entity\Node;
+use Drupal\user\Entity\User;
+use Drupal\Core\Datetime\DrupalDateTime;
+use Drupal\datetime\Plugin\Field\FieldType\DateTimeItemInterface;
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\Display\EntityViewDisplayInterface;
+use Symfony\Component\HttpFoundation\RedirectResponse;
+
+/**
+ * Implements hook_entity_insert().
+ *
+ * Notification when company create new internship.
+ */
+function manati_internship_entity_insert(EntityInterface $entity) {
+  /** @var Drupal\Core\Entity\EntityInterface[] entity */
+  if ($entity->getEntityTypeId() === 'node' && $entity->bundle() === 'internship') {
+    // Loads the current node and user.
+    $uid = \Drupal::currentUser()->id();
+    /** @var \Drupal\user\UserInterface $user */
+    $user = \Drupal::service('entity_type.manager')->getStorage('user')->load($uid);
+    if ($user && $user->hasRole('company')) {
+      $mailManager = \Drupal::service('plugin.manager.mail');
+      $module = 'manati_notification';
+      $key = 'create_internship';
+      $to = \Drupal::config('system.site')->get('mail_notification');
+      $params['company_name'] = $user->field_name->value;
+      $params['company_nid'] = $user->id();
+      $params['internship_name'] = $entity->label();
+      $params['internship_nid'] = $entity->id();
+      $langcode = \Drupal::currentUser()->getPreferredLangcode();
+      $send = TRUE;
+
+      $mailManager->mail($module, $key, $to, $langcode, $params, NULL, $send);
+    }
+  }
+}
+
+/**
+ * Implements hook_ENTITY_TYPE_delete().
+ */
+function manati_internship_node_delete(EntityInterface $entity) {
+  /** @var Drupal\node\NodeInterface $node */
+  if ($entity->bundle() === 'internship' && $node = $entity) {
+
+    // Get user company.
+    /** @var Drupal\user\UserInterface $user_company */
+    $user_company = $node->getOwner();
+    $nid = $node->id();
+
+    // Remove if user is locked as call end internship.
+    if (!$user_company->field_call_end_date_interships->isEmpty()) {
+      $call_end_internship_ids_blocked = $user_company->field_call_end_date_interships->referencedEntities();
+      $user_company->field_call_end_date_interships = _delete_blocked_internship($call_end_internship_ids_blocked, $nid);
+      $user_company->save();
+    }
+
+    // Remove if user is locked as end internship.
+    if (!$user_company->field_end_date_interships->isEmpty()) {
+      $end_internship_ids_blocked = $user_company->field_end_date_interships->referencedEntities();
+      $user_company->field_end_date_interships = _delete_blocked_internship($end_internship_ids_blocked, $nid);
+      $user_company->save();
+    }
+
+
+    // Notificatio user cancelled internship.
+    $available_interns = get_available_interns($node);
+    if (!empty($available_interns)) {
+      $internship_name = $node->label();
+      $company_name = $user_company->field_name->value;
+      $company_id = $user_company->id();
+      $langcode = $user_company->getPreferredLangcode();
+
+      foreach ($available_interns as $intern) {
+        $to = $intern->getEmail();
+        notification_cancelled_internship($nid, $internship_name, $company_name, $company_id, $to, $langcode);
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function manati_internship_form_alter(&$form, FormStateInterface $form_state, $form_id) {
+  $internship_form_ids = [
+    'node_internship_edit_form',
+    'node_internship_form',
+  ];
+
+  if (in_array($form_id, $internship_form_ids)) {
+    // Add custom form validation.
+    $form['#validate'][] = 'manati_internship_form_validate';
+    $form['field_area_unlimited']['#attached']['library'][] = 'manati_custom_ui/manati-custom-register';
+  }
+}
+
+
+/**
+ * Implements hook_ENTITY_TYPE_view().
+ */
+function manati_internship_node_view(array &$build, EntityInterface $entity, EntityViewDisplayInterface $display, $view_mode) {
+  $uid = \Drupal::currentUser()->id();
+  if ($entity->bundle() === 'internship' && $uid === 0) {
+    $response = new RedirectResponse('/user/login?destination=' . $entity->toUrl()->toString());
+    $response->send();
+    return;
+  }
+}
+
+/**
+ * Implements hook_cron().
+ */
+function manati_internship_cron() {
+  $today = new DrupalDateTime('today', DateTimeItemInterface::STORAGE_TIMEZONE);
+
+  // Get all nodes with call end date finished.
+  $query_call_end = \Drupal::service('entity_type.manager')->getStorage('node')->getQuery();
+  $nids_call_end = $query_call_end->condition('type', 'internship')
+    ->condition('status', Node::PUBLISHED)
+    ->condition('field_enabled', 1)
+    ->condition('field_call_end_date_completed', 0)
+    ->condition('field_call_end_date', $today->format(DateTimeItemInterface::DATE_STORAGE_FORMAT), '<')
+    ->sort('field_call_end_date', 'DESC')
+    ->execute();
+  $internship_call_end_nodes = \Drupal::service('entity_type.manager')->getStorage('node')->loadMultiple($nids_call_end);
+
+  if ($internship_call_end_nodes) {
+    /** @var \Drupal\node\NodeInterface $internship */
+    foreach ($internship_call_end_nodes as $internship) {
+      $internship_owner = $internship->getOwner();
+      $locked_internships = [];
+      if (!$internship_owner->field_call_end_date_interships->isEmpty()) {
+        foreach ($internship_owner->field_call_end_date_interships as $node) {
+          $locked_internships[] = $node->target_id;
+        }
+      }
+      if (!in_array($internship->id(), $locked_internships)) {
+        $internship_owner->field_call_end_date_interships[] = [
+          'target_id' => $internship->id(),
+        ];
+        $internship_owner->save();
+      }
+
+      // If field call end notification is not value (false nor true)
+      // or Manatí disable bool for send message again.
+      if ($internship->field_call_end_date_notification->isEmpty() || !$internship->field_call_end_date_notification->value) {
+        // Notification to company.
+        notification_blocked_internship($internship, $internship_owner, $internship_owner->getEmail(), 'company_call_end_date_internship');
+
+        // Notification to CINDE.
+        $mail = \Drupal::config('system.site')->get('mail_notification');
+        notification_blocked_internship($internship, $internship_owner, $mail, 'admin_call_end_date_internship');
+
+        // Notified internship.
+        $internship->set('field_call_end_date_notification', 1);
+        $internship->save();
+      }
+    }
+  }
+
+  // Get all nodes with internship end date finished.
+  $query_internship_end = \Drupal::service('entity_type.manager')->getStorage('node')->getQuery();
+  $nids_internship = $query_internship_end->condition('type', 'internship')
+    ->condition('status', Node::PUBLISHED)
+    ->condition('field_enabled', 1)
+    ->condition('field_end_date_completed', 0)
+    ->exists('field_interns_selected')
+    ->condition('field_date_only_range.end_value', $today->format(DateTimeItemInterface::DATE_STORAGE_FORMAT), '<')
+    ->sort('field_date_only_range.end_value', 'DESC')
+    ->execute();
+  $internship_end_nodes = \Drupal::service('entity_type.manager')->getStorage('node')->loadMultiple($nids_internship);
+
+  if ($internship_end_nodes) {
+    /** @var \Drupal\node\NodeInterface $internship */
+    foreach ($internship_end_nodes as $internship) {
+      $internship_owner = $internship->getOwner();
+      $locked_internships = [];
+      if (!$internship_owner->field_end_date_interships->isEmpty()) {
+        foreach ($internship_owner->field_end_date_interships as $node) {
+          $locked_internships[] = $node->target_id;
+        }
+      }
+      if (!in_array($internship->id(), $locked_internships)) {
+        $internship_owner->field_end_date_interships[] = [
+          'target_id' => $internship->id(),
+        ];
+        $internship_owner->save();
+      }
+      // If field end date notification is not value (false nor true)
+      // or Manatí disable bool for send message again.
+      if ($internship->field_end_date_notification->isEmpty() || !$internship->field_end_date_notification->value) {
+        // Notification to company.
+        notification_blocked_internship($internship, $internship_owner, $internship_owner->getEmail(), 'company_end_date_internship');
+
+        // Notification to CINDE.
+        $mail = \Drupal::config('system.site')->get('mail_notification');
+        notification_blocked_internship($internship, $internship_owner, $mail, 'admin_end_date_internship');
+
+        // Notified internship.
+        $internship->set('field_end_date_notification', 1);
+        $internship->save();
+      }
+    }
+  }
+}
+
+/**
+ * Function of sending mail when blocked internship.
+ *
+ * @param Drupal\node\Entity\Node $node
+ *   The node internship.
+ * @param Drupal\user\Entity\User $company
+ *   The user company.
+ * @param string $mail
+ *   The mail to.
+ * @param string $keyMail
+ *   The key mail manager.
+ */
+function notification_blocked_internship(Node $node, User $company, string $mail, string $keyMail) {
+  $mailManager = \Drupal::service('plugin.manager.mail');
+  $module = 'manati_notification';
+  $key = $keyMail;
+  $to = $mail;
+  $params['company_name'] = $company->field_name->value;
+  $params['company_nid'] = $company->id();
+  $params['internship_name'] = $node->label();
+  $params['internship_nid'] = $node->id();
+  $langcode = \Drupal::currentUser()->getPreferredLangcode();
+  $send = TRUE;
+
+  $mailManager->mail($module, $key, $to, $langcode, $params, NULL, $send);
+}
+
+/**
+ * Function remove node in field user blocked.
+ *
+ * @param array $internship_ids_blocked
+ *   All node blocked.
+ * @param int $nid
+ *   The node id.
+ */
+function _delete_blocked_internship(array $internship_ids_blocked, int $nid) {
+  $new_internship_ids = [];
+
+  foreach ($internship_ids_blocked as $internship) {
+    if ($internship['target_id'] !== $nid) {
+      $new_internship_ids[] = [
+        'target_id' => $internship['target_id'],
+      ];
+    }
+  }
+
+  return $new_internship_ids;
+}
+
+/**
+ * Function of sending mail to cancelled internship.
+ *
+ * @param string $internship_nid
+ *   The internship node.
+ * @param string $internship_name
+ *   The internship name.
+ * @param string $company_name
+ *   The company name.
+ * @param string $company_id
+ *   The company id.
+ * @param string $mail_intern
+ *   The mail intern.
+ * @param string $lang
+ *   The langcode for mail manager.
+ */
+function notification_cancelled_internship($internship_nid, $internship_name, $company_name, $company_id, $mail_intern, $lang) {
+  $mailManager = \Drupal::service('plugin.manager.mail');
+  $module = 'manati_notification';
+  $key = 'cancelled_internship';
+  $to = $mail_intern;
+  $params['company_name'] = $company_name;
+  $params['company_nid'] = $company_id;
+  $params['internship_name'] = $internship_name;
+  $params['internship_nid'] = $internship_nid;
+  $langcode = $lang;
+  $send = TRUE;
+
+  $mailManager->mail($module, $key, $to, $langcode, $params, NULL, $send);
+}
+
+/**
+ * Function of sending mail to rejected users.
+ *
+ * @param \Drupal\node\NodeInterface $node
+ *   The node internship.
+ *
+ * @return array
+ *   All available interns.
+ */
+function get_available_interns(NodeInterface $node) {
+  // Get all interns.
+  $all_interns = $node->field_interns_all->referencedEntities();
+
+  // Get interns rejected.
+  $rejected_interns = $node->field_interns_rejected->referencedEntities();
+
+  // Exclude interns rejected into interns all.
+  $available_interns = [];
+  foreach ($all_interns as $intern) {
+    if (!in_array($intern, $rejected_interns, TRUE)) {
+      $available_interns[] = $intern;
+    }
+  }
+
+  return $available_interns;
+}
